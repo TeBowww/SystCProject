@@ -1,0 +1,16 @@
+cmdline.c
+cmdline.h
+cmdline.o
+cmdline_test
+cmdline_test.c
+cmdline_test.o
+fish
+fish.c
+fish.o
+Makefile
+streams.c
+streams.h
+streams.o
+test2.txt
+test.txt
+text.txt

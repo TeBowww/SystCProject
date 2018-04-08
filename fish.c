@@ -4,6 +4,8 @@
 // 5 : fopen error
 // 6 : fclose error
 // 7 : Error signal catch doesn't match
+// 8 : calloc error
+// 9 : pipe error
 
 
 /*##########################################################################################
@@ -45,7 +47,6 @@ void handSIGINT(int sig){
 }
 
 
-
 /*##########################################################################################
                              Main program
 ##########################################################################################*/
@@ -54,9 +55,6 @@ int main() {
   struct line li;
   char buf[BUFLEN];
   int status;
-
-  FILE *input =stdin;
-  FILE *output = stdout;
 
   //Signal gestion
   struct sigaction action;
@@ -114,50 +112,84 @@ int main() {
 
 
     // --------------------------------------- Main bloc -----------------------//
-
-    pid_t pid = fork();
-
-    switch(pid){
-      case -1 : 
-        perror("fork");
-        exit(3);
-      break;
-
-      case 0:
-        //reinit signal default action for SIGINT
-        action.sa_handler = SIG_DFL;
-        sigaction(SIGINT, &action, NULL);
-
-        //Redirect input and output to a file if needed
-        input_redirection(input, li);
-        output_redirection(output, li);
-
-        execvp(li.cmds[0].args[0], li.cmds[0].args);
-        perror("execvp");
-        exit(4);
-      break;
-
-      default:
-        //Ignore SIGINT suring child process
-        action.sa_handler = SIG_IGN;
-        sigaction(SIGINT, &action, NULL);
- 
-        //wait ending of son and close the open streams
-        waitpid(pid, &status, 0);
-        input_close(input);
-        output_close(output);
-
-        //reset the action associate to SIGINT
-        action.sa_handler = handSIGINT;
-        sigaction(SIGINT, &action, NULL);
     
-        if(WIFEXITED(status)){
-        fprintf(stdout,"\nThe execution has correctly ended with code %d\n", WEXITSTATUS(status));
-        }
-        if(WIFSIGNALED(status)){
-          fprintf(stdout,"\nIt has ended by signal n°%d\n", WTERMSIG(status));
-        }
+    //streams reset
+    FILE *input =stdin;
+    FILE *output = stdout;
+    
+    struct pipe_tab pipes;
+      // if(li.ncmds > 1){ 
+        init_pipe_tab(&pipes, li.ncmds);
+      // }
+
+    for(size_t i = 0; i < li.ncmds; ++i){
+
+      //initilise pipe
+      if(i < pipes.nbpipe && pipe(pipes.tab[i]->descriptor) != 0){
+        perror("pipe");
+        exit(9);
+      }
+
+      pid_t pid = fork();
+
+      switch(pid){
+        case -1 : 
+          perror("fork");
+          exit(3);
+        break;
+
+            
+        case 0:   // ------------------ CHILD PROCESSUS --------------------------//
+
+          //reinit signal default action for SIGINT
+          action.sa_handler = SIG_DFL;
+          sigaction(SIGINT, &action, NULL);
+
+          //Redirect input and output to a file if needed
+          input_redirection(input, li);
+          output_redirection(output, li);
+
+          //pipe creation and close descriptor for son
+          pipe_redirect_input(&li, &pipes, i);
+
+          execvp(li.cmds[i].args[0], li.cmds[i].args);
+          perror("execvp");
+          exit(4);
+        break;  // ------------------ END CHILD PROCESSUS --------------------------//
+
+
+        default : // ------------------ FATHER PROCESSUS --------------------------//
+
+          //Ignore SIGINT suring child process
+          action.sa_handler = SIG_IGN;
+          sigaction(SIGINT, &action, NULL);
+
+          //close unused dexcriptors
+          pipe_father_cose_descriptor(&li, &pipes, i);
+   
+          //wait ending of son and close the open streams
+          waitpid(pid, &status, 0);
+
+          //close open files if needed
+          input_close(input);
+          output_close(output);
+
+          //reset the action associate to SIGINT
+          action.sa_handler = handSIGINT;
+          sigaction(SIGINT, &action, NULL);
+      }     // ------------------ END FATHER PROCESSUS ----------------------------//
+          
+    } 
+
+    if(WIFEXITED(status)){
+      fprintf(stdout,"\nThe execution has correctly ended with code %d\n", WEXITSTATUS(status));
     }
+    if(WIFSIGNALED(status)){
+      fprintf(stdout,"\nIt has ended by signal n°%d\n", WTERMSIG(status));
+    }   
+
+    pipe_tab_destroy(&pipes);
+
     line_reset(&li);
   }
   
