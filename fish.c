@@ -6,7 +6,7 @@
 // 7 : Error signal catch doesn't match
 // 8 : calloc error
 // 9 : pipe error
-
+// 10 : stat error
 
 /*##########################################################################################
                              Includes and define
@@ -38,7 +38,7 @@ void handSIGINT(int sig){
 
   //Check the signal recieved
   if(sig != SIGINT){
-    fprintf(stderr, "error, wrong signal catched");
+    fprintf(stderr, "Error, wrong signal catched");
     exit(7);
   }
 
@@ -52,6 +52,9 @@ void handSIGINT(int sig){
 ##########################################################################################*/
 
 int main() {
+  char cwd[256];
+  struct stat sf;
+
   struct line li;
   char buf[BUFLEN];
   int status;
@@ -68,8 +71,12 @@ int main() {
   line_init(&li);
 
   for (;;) {
-
-    printf("fish> ");
+  	if (getcwd(cwd, sizeof(cwd)) == NULL) {
+      perror("getcwd");
+  	}
+    else {
+      printf("fish %s>", cwd);
+    }
     fgets(buf, BUFLEN, stdin);
 
     if(sig_int == true){
@@ -84,6 +91,22 @@ int main() {
       line_reset(&li);
       continue;
     }
+
+    if(strcmp(li.cmds[0].args[0], "exit") == 0) {
+		break;
+	} else if (strcmp(li.cmds[0].args[0], "cd") == 0) {
+		if (stat(li.cmds[0].args[1], &sf) == 0) {    	
+			if(S_ISDIR(sf.st_mode)){
+				chdir(li.cmds[0].args[1]);
+			} else {
+				fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
+			}
+		} else {
+			fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
+		}
+		line_reset(&li);
+      	continue;
+	}
 
     fprintf(stderr, "Command line:\n");
     fprintf(stderr, "\tNumber of commands: %zu\n", li.ncmds);
@@ -118,9 +141,9 @@ int main() {
     FILE *output = stdout;
     
     struct pipe_tab pipes;
-      // if(li.ncmds > 1){ 
+      if(li.ncmds > 1){ 
         init_pipe_tab(&pipes, li.ncmds);
-      // }
+       }
 
     for(size_t i = 0; i < li.ncmds; ++i){
 
