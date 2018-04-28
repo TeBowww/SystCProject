@@ -92,21 +92,28 @@ int main() {
       continue;
     }
 
+    if(li.ncmds == 0){
+      printf("");
+      continue;
+    }
+
     if(strcmp(li.cmds[0].args[0], "exit") == 0) {
-		break;
-	} else if (strcmp(li.cmds[0].args[0], "cd") == 0) {
-		if (stat(li.cmds[0].args[1], &sf) == 0) {    	
-			if(S_ISDIR(sf.st_mode)){
-				chdir(li.cmds[0].args[1]);
-			} else {
-				fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
-			}
-		} else {
-			fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
-		}
-		line_reset(&li);
-      	continue;
-	}
+      line_reset(&li);
+		  break;
+	  } 
+    else if (strcmp(li.cmds[0].args[0], "cd") == 0) {
+  		if (stat(li.cmds[0].args[1], &sf) == 0) {    	
+  			if(S_ISDIR(sf.st_mode)){
+  				chdir(li.cmds[0].args[1]);
+  			} else {
+  				fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
+  		}
+  		} else {
+  			fprintf(stderr, "Error, %s is not a folder\n", li.cmds[0].args[1]);
+  		}
+  		line_reset(&li);
+        	continue;
+	  }
 
     fprintf(stderr, "Command line:\n");
     fprintf(stderr, "\tNumber of commands: %zu\n", li.ncmds);
@@ -175,6 +182,8 @@ int main() {
           //pipe creation and close descriptor for son
           pipe_redirect_input(&li, &pipes, i);
 
+
+
           execvp(li.cmds[i].args[0], li.cmds[i].args);
           perror("execvp");
           exit(4);
@@ -191,7 +200,8 @@ int main() {
           pipe_father_cose_descriptor(&li, &pipes, i);
    
           //wait ending of son and close the open streams
-          waitpid(pid, &status, 0);
+          if(!li.background)
+            waitpid(pid, &status, 0);
 
           //close open files if needed
           input_close(input);
